@@ -39,13 +39,27 @@ jobs:
       - name: Run Snyk tests on modified .NET projects
         if: steps.get_modified_csproj.outputs.modified_csproj
         run: |
+          modified_csproj_output="${{ steps.get_modified_csproj.outputs.modified_csproj }}"
+
+          if [ -z "$modified_csproj_output" ]; then
+            echo "No modified .csproj files found. Skipping .NET security scan."
+            exit 0
+          fi
+
           IFS=$'\n'
-          for csproj_file in $(echo "${{ steps.get_modified_csproj.outputs.modified_csproj }}"); do
-            echo "Modified .csproj file: $csproj_file"
-            echo "Performing dotnet restore on: $csproj_file"
-            dotnet restore "$csproj_file"
-            if [ $? -eq 0 ]; then
-              parent_folder=$(dirname "$csproj_file")
-              echo "Scanning folder with Snyk: $parent_folder"
-              snyk test --dotnet-runtime-resolution "$parent_folder"
+          for csproj_file in $(echo "$modified_csproj_output"); do
+            if [ -f "$csproj_file" ]; then
+              echo "Modified .csproj file found: $csproj_file"
+              echo "Performing dotnet restore on: $csproj_file"
+              dotnet restore "$csproj_file"
+              if [ $? -eq 0 ]; then
+                parent_folder=$(dirname "$csproj_file")
+                echo "Scanning folder with Snyk: $parent_folder"
+                snyk test --dotnet-runtime-resolution "$parent_folder"
+              else
+                echo "dotnet restore failed for: $csproj_file. Skipping Snyk test for this project."
+              fi
             else
+              echo "Warning: Modified .csproj file '$csproj_file' not found."
+            fi
+          done
