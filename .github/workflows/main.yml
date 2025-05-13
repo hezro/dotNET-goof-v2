@@ -33,7 +33,7 @@ jobs:
       - name: Get modified .csproj files
         id: get_modified_csproj
         run: |
-          git diff --name-only ${{ github.event.before }}...${{ github.event.after }} | grep '\.csproj$' 
+          git fetch --depth=2 origin ${{ github.event.before }} ${{ github.event.after }}
           modified_csproj=$(git diff --name-only ${{ github.event.before }}...${{ github.event.after }} | grep '\.csproj$' || true)
           echo "modified_csproj=$modified_csproj" >> "$GITHUB_OUTPUT"
 
