@@ -1,0 +1,51 @@
+on:
+  pull_request:
+    branches: [main] # Or your default branch
+  push:
+    branches: [main] # Or your default branch
+
+jobs:
+  snyk_scan:
+    runs-on: ubuntu-latest
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+    steps:    
+      - uses: actions/checkout@v2
+      - name: Download Snyk
+        run: |
+          wget -O snyk https://static.snyk.io/cli/latest/snyk-linux
+          chmod +x ./snyk
+          mv ./snyk /usr/local/bin/
+          
+      - name: Authenticate Snyk
+        run: snyk auth ${SNYK_TOKEN}
+        
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2 # Needed to compare with previous commit/branch
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '5.0' # Or your desired .NET version
+
+      - name: Get modified .csproj files
+        id: get_modified_csproj
+        run: |
+          modified_csproj=$(git diff --name-only ${{ github.event.before }}...${{ github.event.after }} | grep '\.csproj$')
+          echo "modified_csproj=$modified_csproj" >> "$GITHUB_OUTPUT"
+
+      - name: Run Snyk tests on modified .NET projects
+        if: steps.get_modified_csproj.outputs.modified_csproj
+        run: |
+          IFS=$'\n'
+          for csproj_file in $(echo "${{ steps.get_modified_csproj.outputs.modified_csproj }}"); do
+            echo "Modified .csproj file: $csproj_file"
+            echo "Performing dotnet restore on: $csproj_file"
+            dotnet restore "$csproj_file"
+            if [ $? -eq 0 ]; then
+              parent_folder=$(dirname "$csproj_file")
+              echo "Scanning folder with Snyk: $parent_folder"
+              snyk test --dotnet-runtime-resolution "$parent_folder"
+            else
