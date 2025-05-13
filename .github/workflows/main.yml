@@ -33,8 +33,11 @@ jobs:
       - name: Get modified .csproj files
         id: get_modified_csproj
         run: |
-          git fetch --depth=2 origin ${{ github.event.before }} ${{ github.event.after }}
-          modified_csproj=$(git diff --name-only ${{ github.event.before }}...${{ github.event.after }} | grep '\.csproj$' || true)
+          base_branch="${{ github.event.pull_request.base.ref }}"
+          head_sha="${{ github.event.pull_request.head.sha }}"
+          echo "Comparing $head_sha against origin/$base_branch"
+          git fetch --depth=2 origin "$base_branch" || true
+          modified_csproj=$(git diff --name-only "origin/$base_branch" "$head_sha" | grep '\.csproj$' || true)
           echo "modified_csproj=$modified_csproj" >> "$GITHUB_OUTPUT"
 
       - name: Run Snyk tests on modified .NET projects
